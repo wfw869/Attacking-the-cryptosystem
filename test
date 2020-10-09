@@ -175,7 +175,7 @@ def load_image(N):
     img=np.zeros([6,28,28],dtype=np.float32)
     en_img=np.zeros([6,1,N,N],dtype=np.float32)
     for i in range(0,6):
-        im = Image.open("/home/aistudio/fashion1/fashion_"+str(i)+".jpg")
+        im = Image.open("dataF/fashion_"+str(i)+".jpg")
         im = im.convert('L')
         #im = np.reshape(im,(28,28))
         im1=np.array(im)
