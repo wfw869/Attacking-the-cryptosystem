@@ -1,0 +1,210 @@
+import numpy as np
+import paddle as paddle
+import paddle.dataset.mnist as mnist
+import paddle.fluid as fluid
+from PIL import Image
+import matplotlib.pyplot as plt
+from multiprocessing import cpu_count
+import cv2 as cv
+import os
+import time
+import gzip
+import sys
+N=100
+use_cuda = True
+place = fluid.CUDAPlace(0) if use_cuda else fluid.CPUPlace()
+model_save_dir = "work/C1002.inference.model"
+#创建预测用的Executor
+infer_exe = fluid.Executor(place)
+inference_scope = fluid.core.Scope() 
+def change1(x): #0-1化
+    y=(x-np.min(x))/(np.max(x)-np.min(x)) 
+    return y
+def change_1(x): #规范化
+    y=(x-np.min(x))/(np.max(x)-np.min(x)) 
+    return (y-0.5)/0.5
+
+def show_picture(t1,t2,pre):
+    pre=np.squeeze(pre)
+    t2=np.squeeze(t2)
+    plt.subplot(3,6,1)
+    plt.imshow(t1[0,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,2)
+    plt.imshow(t1[1,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,3)
+    plt.imshow(t1[2,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,4)
+    plt.imshow(t1[3,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,5)
+    plt.imshow(t1[4,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,6)
+    plt.imshow(t1[5,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,7)
+    plt.imshow(t2[0,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,8)
+    plt.imshow(t2[1,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,9)
+    plt.imshow(t2[2,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,10)
+    plt.imshow(t2[3,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,11)
+    plt.imshow(t2[4,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,12)
+    plt.imshow(t2[5,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,13)
+    plt.imshow(pre[0,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,14)
+    plt.imshow(pre[1,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,15)
+    plt.imshow(pre[2,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,16)
+    plt.imshow(pre[3,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,17)
+    plt.imshow(pre[4,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    plt.subplot(3,6,18)
+    plt.imshow(pre[5,:],'gray')
+    plt.xticks([])
+    plt.yticks([])
+    #plt.savefig("/home/aistudio/fashioninterC1001.png",format='png')
+    plt.show()
+def interference_change1(img):     
+    # 菲涅尔衍射加密
+    z0 = 25  # 衍射距离mm  
+    z1 = 50
+    z2 = 75
+    h = 633e-6  # 波长mm
+    k = 2 * np.pi / h  # 波数
+    N = 100
+    dfx=5.3e-6
+    dfy=5.3e-6
+    fx,fy=np.meshgrid(np.linspace(-1/dfx/2, 1/dfy/2, N),np.linspace(-1/dfx/2, 1/dfy/2, N))
+    U0 = change1(img)  # 初始场复振幅
+    H=np.exp(1j*k*z1*(1-h*h/2*(fx*fx+fy*fy)))
+    H1=np.exp(1j*k*z0*(1-h*h/2*(fx*fx+fy*fy)))
+    H2=np.exp(1j*k*z2*(1-h*h/2*(fx*fx+fy*fy)))
+    # 加密
+    np.random.seed(1)
+    RPM1 = np.random.rand(N, N)  # 生成随机相位因子1
+    R1 =  np.exp(2j * np.pi*RPM1 )   # 干涉光
+    np.random.seed(2)
+    RPM2 = np.random.rand(N, N)  
+    R2 = np.exp(2j * np.pi*RPM2 )
+    np.random.seed(3)
+    RPM3 = np.random.rand(N, N)  
+    R3 = 1 * np.exp(2j * np.pi*RPM3 )
+    np.random.seed(4)
+    RPM4 = np.random.rand(N, N)  
+    R4 = 1 * np.exp(2j * np.pi*RPM4 )
+    np.random.seed(5)
+    RPM5 = np.random.rand(N, N)  
+    R5 = 1 * np.exp(2j * np.pi*RPM5 )
+    u2 = U0  # 第一块随机相位板置乱  ，加了相位板再衍射出来就是加密图像
+
+    # u3 = np.fft.fftshift(np.fft.fft2(u2*fresne0))*pha0   # 第一次fresnel衍射后的复振幅
+    u3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u2))*H))   # 第一次fresnel衍射后的复振幅
+    u4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u3*R1))*H))
+    u5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u4*R2))*H))
+    r3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(R3))*H))  # 干涉光衍射后的复振幅
+    r4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R4))*H2))
+    r5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R5))*H1))
+
+    out = (abs(u5+r5))**2 #(u3+r3)*np.conjugate(u3+r3)
+    return change1(out)
+    
+def cc_1(y,x,N):
+    y=np.squeeze(change1(y))
+    cc=[]
+    for i in range(0,6):
+        t=np.reshape(x[i,:],(N,N))
+        t1=np.reshape(y[i,:],(N,N))
+        CC1=np.sum((t-np.mean(t))*(t1-np.mean(t1)))
+        CC2=np.sqrt(np.sum(np.square(t-np.mean(t)))*(np.sum(np.square(t1-np.mean(t1)))))
+        a=CC1/CC2
+        print(a)
+        cc.append(a)
+    return sum(cc)/len(cc)
+
+def psnr_val(y,x,N):
+    y=np.squeeze(change1(y))
+    psnr=[]
+    for i in range(0,6):
+        t=np.reshape(x[i,:],(N,N))
+        t1=np.reshape(y[i,:],(N,N))
+        loss = np.mean(np.square(t1-t))               
+        psnr1 = 10 * np.log10(1*1/loss)
+        psnr.append(psnr1)
+        print(psnr1)
+    return sum(psnr)/len(psnr)
+
+#图片预处理
+def load_image(N):
+    img=np.zeros([6,28,28],dtype=np.float32)
+    en_img=np.zeros([6,1,N,N],dtype=np.float32)
+    for i in range(0,6):
+        im = Image.open("/home/aistudio/fashion1/fashion_"+str(i)+".jpg")
+        im = im.convert('L')
+        #im = np.reshape(im,(28,28))
+        im1=np.array(im)
+        x3=cv.resize(im1, (N, N), interpolation=cv.INTER_LINEAR)#LANCZOS4
+        x=np.reshape(im1,(28,28)).astype("float32")
+        img[i,:]=change1(x)
+        x1=interference_change1(x3)
+        #x1=noise(x1)
+        x2=np.reshape(x1,(1,N,N)).astype("float32")
+        en_img[i,:]=x2
+    return img,en_img
+
+#开始预测
+with fluid.scope_guard(inference_scope):
+    #从指定目录中加载 推理model(inference model)
+    [inference_program, # 预测用的program
+     feed_target_names, # 是一个str列表，它包含需要在推理 Program 中提供数据的变量的名称。 
+     fetch_targets] = fluid.io.load_inference_model(model_save_dir,#fetch_targets：是一个 Variable 列表，从中我们可以得到推断结果。
+                                                    infer_exe)     #infer_exe: 运行 inference model的 executor
+    
+    
+    img,img1=load_image(N)
+    
+    results = infer_exe.run(inference_program,                 #运行预测程序
+                            feed={feed_target_names[0]: img1},  #喂入要预测的images
+                            fetch_list=fetch_targets)          #得到推测结果predict
+    
+    show_picture(img,img1,results)
+    cc_val=cc_1(results,img,28)
+    psnr=psnr_val(results,img,28)
+    print('psnr:',psnr)
+    print('cc:',cc_val)
