@@ -1,0 +1,6 @@
+Extracting MNIST images of IDX byte file
+This is an example how you can extract the images of a given IDX file. IDX is a format for vectors and multidimensional matrices of various numerical types.
+If you extract the images, You can use this method for extracting the following datasets:
+
+Fashion-MNIST: https://github.com/zalandoresearch/fashion-mnist
+MNIST by Yann LeCun: http://yann.lecun.com/exdb/mnist/
