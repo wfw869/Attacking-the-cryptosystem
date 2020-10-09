@@ -238,7 +238,7 @@ exe.run(fluid.default_startup_program())
 feeder = fluid.DataFeeder( feed_list=[output,images],place=place)
 
 EPOCH_NUM = 20
-model_save_dir = "/home/aistudio/work/C1002.inference.model"
+model_save_dir = "work/C1002.inference.model"
 start_time=time.time()
 for pass_id in range(EPOCH_NUM):
     # 开始训练
