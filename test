@@ -10,17 +10,18 @@ import os
 import time
 import gzip
 import sys
-N=100
+
+N=100 #size
 use_cuda = True
 place = fluid.CUDAPlace(0) if use_cuda else fluid.CPUPlace()
 model_save_dir = "work/C1002.inference.model"
-#创建预测用的Executor
+#creat Executor
 infer_exe = fluid.Executor(place)
 inference_scope = fluid.core.Scope() 
-def change1(x): #0-1化
+def change1(x): #0-1
     y=(x-np.min(x))/(np.max(x)-np.min(x)) 
     return y
-def change_1(x): #规范化
+def change_1(x): 
     y=(x-np.min(x))/(np.max(x)-np.min(x)) 
     return (y-0.5)/0.5
 
@@ -99,27 +100,27 @@ def show_picture(t1,t2,pre):
     plt.imshow(pre[5,:],'gray')
     plt.xticks([])
     plt.yticks([])
-    #plt.savefig("/home/aistudio/fashioninterC1001.png",format='png')
+    #plt.savefig("work/fashioninterC1001.png",format='png')
     plt.show()
 def interference_change1(img):     
-    # 菲涅尔衍射加密
-    z0 = 25  # 衍射距离mm  
+    # Fresnel diffraction
+    z0 = 25  # diffractionmm  
     z1 = 50
     z2 = 75
-    h = 633e-6  # 波长mm
-    k = 2 * np.pi / h  # 波数
+    h = 633e-6  # wavelengthmm
+    k = 2 * np.pi / h  # k
     N = 100
     dfx=5.3e-6
     dfy=5.3e-6
     fx,fy=np.meshgrid(np.linspace(-1/dfx/2, 1/dfy/2, N),np.linspace(-1/dfx/2, 1/dfy/2, N))
-    U0 = change1(img)  # 初始场复振幅
+    U0 = change1(img) 
     H=np.exp(1j*k*z1*(1-h*h/2*(fx*fx+fy*fy)))
     H1=np.exp(1j*k*z0*(1-h*h/2*(fx*fx+fy*fy)))
     H2=np.exp(1j*k*z2*(1-h*h/2*(fx*fx+fy*fy)))
-    # 加密
+    # encryption
     np.random.seed(1)
-    RPM1 = np.random.rand(N, N)  # 生成随机相位因子1
-    R1 =  np.exp(2j * np.pi*RPM1 )   # 干涉光
+    RPM1 = np.random.rand(N, N)  
+    R1 =  np.exp(2j * np.pi*RPM1 )   
     np.random.seed(2)
     RPM2 = np.random.rand(N, N)  
     R2 = np.exp(2j * np.pi*RPM2 )
@@ -132,13 +133,13 @@ def interference_change1(img):
     np.random.seed(5)
     RPM5 = np.random.rand(N, N)  
     R5 = 1 * np.exp(2j * np.pi*RPM5 )
-    u2 = U0  # 第一块随机相位板置乱  ，加了相位板再衍射出来就是加密图像
+    u2 = U0  
 
-    # u3 = np.fft.fftshift(np.fft.fft2(u2*fresne0))*pha0   # 第一次fresnel衍射后的复振幅
-    u3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u2))*H))   # 第一次fresnel衍射后的复振幅
+    # u3 = np.fft.fftshift(np.fft.fft2(u2*fresne0))*pha0   
+    u3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u2))*H))   
     u4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u3*R1))*H))
     u5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u4*R2))*H))
-    r3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(R3))*H))  # 干涉光衍射后的复振幅
+    r3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(R3))*H))  
     r4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R4))*H2))
     r5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R5))*H1))
 
@@ -170,7 +171,7 @@ def psnr_val(y,x,N):
         print(psnr1)
     return sum(psnr)/len(psnr)
 
-#图片预处理
+#preprocessing
 def load_image(N):
     img=np.zeros([6,28,28],dtype=np.float32)
     en_img=np.zeros([6,1,N,N],dtype=np.float32)
@@ -188,20 +189,20 @@ def load_image(N):
         en_img[i,:]=x2
     return img,en_img
 
-#开始预测
+#validation
 with fluid.scope_guard(inference_scope):
-    #从指定目录中加载 推理model(inference model)
-    [inference_program, # 预测用的program
-     feed_target_names, # 是一个str列表，它包含需要在推理 Program 中提供数据的变量的名称。 
-     fetch_targets] = fluid.io.load_inference_model(model_save_dir,#fetch_targets：是一个 Variable 列表，从中我们可以得到推断结果。
-                                                    infer_exe)     #infer_exe: 运行 inference model的 executor
+    #model(inference model)
+    [inference_program, # program
+     feed_target_names, 
+     fetch_targets] = fluid.io.load_inference_model(model_save_dir,#fetch_targets： Variable 
+                                                    infer_exe)     #infer_exe: run executor
     
     
     img,img1=load_image(N)
     
-    results = infer_exe.run(inference_program,                 #运行预测程序
-                            feed={feed_target_names[0]: img1},  #喂入要预测的images
-                            fetch_list=fetch_targets)          #得到推测结果predict
+    results = infer_exe.run(inference_program,                
+                            feed={feed_target_names[0]: img1}, 
+                            fetch_list=fetch_targets)          
     
     show_picture(img,img1,results)
     cc_val=cc_1(results,img,28)
