@@ -26,47 +26,47 @@ def load_mnist(path, kind='train'):
     return images, labels
 def data_mapper(sample):
     img, label = sample
-    #将img数组进行进行归一化处理，得到0到1之间的数值
+    
     img= img.flatten().astype('float32')/255.0
     return img, label
     
-# 对自定义数据集创建训练集train的reader
+# train's reader
 def data_train(file_list,mode, buffered_size=0):
     def reader():
         images, labels=load_mnist(file_list,mode)
         for i in range(4800):
             yield images[i],labels[i]
-    # 创建自定义数据训练集的train_reader
+    
     return paddle.reader.xmap_readers(data_mapper, reader,cpu_count(), buffered_size)
 def data_test(file_list,mode, buffered_size=0):
     def reader():
         images, labels=load_mnist(file_list,mode)
         for i in range(200):
             yield images[i],labels[i]
-    # 创建自定义数据训练集的train_reader
+   
     return paddle.reader.xmap_readers(data_mapper, reader,cpu_count(), buffered_size)
 
     
-# 对自定义数据集创建训练集train的reader
+
 def reader_createor(data, label):
     def reader():
         for i in  range(len(data)):
             yield data[i,:], int(label[i])
     return reader
 
-#数据预处理
-def change_1(x): #规范化
+#preprocesing
+def change_1(x): #standardized
     y=(x-np.min(x))/(np.max(x)-np.min(x)) 
     return (y-0.5)/0.5
 
-def change_tensor_1(x): #reduce_min函数默认会输入维度减小
+def change_tensor_1(x): 
     y=(x-fluid.layers.reduce_min(x,dim=[1,2,3],keep_dim=True))/(fluid.layers.reduce_max(x,dim=[1,2,3],keep_dim=True)-fluid.layers.reduce_min(x,dim=[1,2,3],keep_dim=True))
     return (y-0.5)/0.5
 
-def change1(x): #0-1化
+def change1(x):
     y=(x-np.min(x))/(np.max(x)-np.min(x)) 
     return y
-def change_tensor1(x): #reduce_min函数默认会输入维度减小
+def change_tensor1(x):
     y=(x-fluid.layers.reduce_min(x,dim=[1,2,3],keep_dim=True))/(fluid.layers.reduce_max(x,dim=[1,2,3],keep_dim=True)-fluid.layers.reduce_min(x,dim=[1,2,3],keep_dim=True))
     return y
 
@@ -95,24 +95,24 @@ def SSIM(y,x):
     return ssim
 
 def interference_change1(img):     
-    # 菲涅尔衍射加密
-    z0 = 25  # 衍射距离mm  
+    # Fresnel encryption
+    z0 = 25  # diffraction mm  
     z1 = 50
     z2 = 75
-    h = 633e-6  # 波长mm
-    k = 2 * np.pi / h  # 波数
+    h = 633e-6  # wavelength mm
+    k = 2 * np.pi / h  # k
     N = 100
     dfx=5.3e-6
     dfy=5.3e-6
     fx,fy=np.meshgrid(np.linspace(-1/dfx/2, 1/dfy/2, N),np.linspace(-1/dfx/2, 1/dfy/2, N))
-    U0 = change1(img)  # 初始场复振幅
+    U0 = change1(img)  
     H=np.exp(1j*k*z1*(1-h*h/2*(fx*fx+fy*fy)))
     H1=np.exp(1j*k*z0*(1-h*h/2*(fx*fx+fy*fy)))
     H2=np.exp(1j*k*z2*(1-h*h/2*(fx*fx+fy*fy)))
-    # 加密
+    # encryption
     np.random.seed(1)
-    RPM1 = np.random.rand(N, N)  # 生成随机相位因子1
-    R1 =  np.exp(2j * np.pi*RPM1 )   # 干涉光
+    RPM1 = np.random.rand(N, N)  
+    R1 =  np.exp(2j * np.pi*RPM1 )   
     np.random.seed(2)
     RPM2 = np.random.rand(N, N)  
     R2 = np.exp(2j * np.pi*RPM2 )
@@ -125,13 +125,13 @@ def interference_change1(img):
     np.random.seed(5)
     RPM5 = np.random.rand(N, N)  
     R5 = 1 * np.exp(2j * np.pi*RPM5 )
-    u2 = U0  # 第一块随机相位板置乱  ，加了相位板再衍射出来就是加密图像
+    u2 = U0  
 
-    # u3 = np.fft.fftshift(np.fft.fft2(u2*fresne0))*pha0   # 第一次fresnel衍射后的复振幅
-    u3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u2))*H))   # 第一次fresnel衍射后的复振幅
+    # u3 = np.fft.fftshift(np.fft.fft2(u2*fresne0))*pha0   
+    u3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u2))*H)) 
     u4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u3*R1))*H))
     u5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(u4*R2))*H))
-    r3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(R3))*H))  # 干涉光衍射后的复振幅
+    r3 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(R3))*H))  
     r4 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R4))*H2))
     r5 = np.fft.ifftshift(np.fft.ifft2(np.fft.fftshift(np.fft.fft2(r3*R5))*H1))
 
@@ -170,13 +170,13 @@ tester_reader = data_test(file_list="datasets/data7688/",mode="t10k")
 test_reader = paddle.batch(paddle.reader.shuffle(reader=tester_reader,buf_size=100),batch_size=10)
 
 def network(img,is_test=False):
-    # 第一个卷积-池化层  
+    
     conv_1=fluid.layers.conv2d(img,num_filters=36,filter_size=3,stride=1,padding=1)
     #param_attr=fluid.ParamAttr(name='conv1_w',initializer=fluid.initializer.NormalInitializer(scale=0.001)))
     conv_1 = fluid.layers.batch_norm(conv_1,act="relu",is_test=is_test)
     pool_1=fluid.layers.conv2d(conv_1,num_filters=36,filter_size=3,stride=2,padding="SAME")
     pool_1 = fluid.layers.batch_norm(pool_1,act="relu",is_test=is_test)
-    # 第二个下采样层
+   
 
     conv_2=fluid.layers.conv2d(pool_1,num_filters=64,filter_size=3,stride=1,padding=1)
     #param_attr=fluid.ParamAttr(name='conv2_w',initializer=fluid.initializer.NormalInitializer(scale=0.001)))
@@ -184,25 +184,25 @@ def network(img,is_test=False):
     pool_2=fluid.layers.conv2d(conv_2,num_filters=64,filter_size=3,stride=2,padding="SAME")
     pool_2 = fluid.layers.batch_norm(pool_2,act="relu",is_test=is_test)
     
-    # 第三个下采样层
+    
     conv_3=fluid.layers.conv2d(pool_2,num_filters=84,filter_size=3,stride=1,padding=1)
     #param_attr=fluid.ParamAttr(name='conv3_w',initializer=fluid.initializer.NormalInitializer(scale=0.001)))
     conv_3 = fluid.layers.batch_norm(conv_3,act="relu",is_test=is_test)
     pool_3=fluid.layers.conv2d(conv_3,num_filters=84,filter_size=3,stride=2,padding="SAME")
     pool_3 = fluid.layers.batch_norm(pool_3,act="relu",is_test=is_test)
     
-    # 第四个下采样层
+    
     conv_4=fluid.layers.conv2d(pool_3,num_filters=96,filter_size=3,stride=1,padding=1)
     #param_attr=fluid.ParamAttr(name='conv4_w',initializer=fluid.initializer.NormalInitializer(scale=0.001)))
     conv_4 = fluid.layers.batch_norm(conv_4,act="relu",is_test=is_test)
     pool_4=fluid.layers.conv2d(conv_4,num_filters=96,filter_size=3,stride=2,padding="SAME")
     pool_4 = fluid.layers.batch_norm(pool_4,act="relu",is_test=is_test)
 
-    #第六个残差层
+    
     conv_6=fluid.layers.conv2d(pool_4,num_filters=96,filter_size=3,stride=1,padding=1)
     #param_attr=fluid.ParamAttr(name='conv6_w',initializer=fluid.initializer.NormalInitializer(scale=0.001)))
     conv_6 = fluid.layers.batch_norm(conv_6,act="relu",is_test=is_test)
-    #上采样层
+    
     conv_8=fluid.layers.conv2d_transpose(conv_6, num_filters=96,output_size=14, stride=2)
     conv_8 = fluid.layers.batch_norm(conv_8,act="relu",is_test=is_test)
     conv_9=fluid.layers.conv2d_transpose(conv_8, num_filters=96,output_size=28, stride=2)
@@ -219,80 +219,81 @@ def network(img,is_test=False):
     return prediction
     
 with fluid.unique_name.guard():
-    #定义输入数据
+    #Input
     data_shape = [1, 28, 28]
-    output = fluid.layers.data(name='output', shape=data_shape, dtype='float32')#原图
+    output = fluid.layers.data(name='output', shape=data_shape, dtype='float32')#original
     images = fluid.layers.data(name='images', shape=[1,100,100], dtype='float32')
     predict = change_tensor1(network(images))
     cost = fluid.layers.reduce_mean(fluid.layers.square(predict - output),dim=[1,2,3])
-    avg_cost = fluid.layers.mean(cost)                            # 计算cost中所有元素的平均值
-    acc = cc(predict, output)       #使用输入和标签计算准确率
+    avg_cost = fluid.layers.mean(cost)                            # cost
+    acc = cc(predict, output)       #accurancy
     optimizer =fluid.optimizer.Adam(learning_rate=0.001)#,regularization=fluid.regularizer.L2Decay(regularization_coeff=0.0005)
     optimizer.minimize(avg_cost)#parameter_list=['conv1_w', 'conv2_w','conv3_w','conv4_w','conv5_w','conv6_w','conv12_w'])
 test_program = fluid.Program()
 with fluid.unique_name.guard():
     with fluid.program_guard(test_program, fluid.Program()):
         data_shape = [1, 28, 28]
-        output = fluid.layers.data(name='output', shape=data_shape, dtype='float32')#原图
+        output = fluid.layers.data(name='output', shape=data_shape, dtype='float32')
         images = fluid.layers.data(name='images', shape=[1,100,100], dtype='float32')
         predict = change_tensor1(network(images))
         cost1 = fluid.layers.reduce_mean(fluid.layers.square(predict - output),dim=[1,2,3])
-        avg_cost1 = fluid.layers.mean(cost1)                            # 计算cost中所有元素的平均值
+        avg_cost1 = fluid.layers.mean(cost1)                            
         acc1 = cc(predict, output)
         ssim = SSIM(predict, output)
 
-# 定义使用CPU还是GPU，使用CPU时use_cuda = False,使用GPU时use_cuda = True
+# GPU>use_cuda = True
 use_cuda = True
 place = fluid.CUDAPlace(0) if use_cuda else fluid.CPUPlace()
 
-# 创建执行器，初始化参数
+# initialize
 exe = fluid.Executor(place)
 exe.run(fluid.default_startup_program())
-#DataFeeder 负责将reader(读取器)返回的数据转成一种特殊的数据结构，使它们可以输入到 Executor
+#DataFeeder 
 feeder = fluid.DataFeeder( feed_list=[output,images],place=place)
 
 EPOCH_NUM = 20
 model_save_dir = "work/C1002.inference.model"
 start_time=time.time()
 for pass_id in range(EPOCH_NUM):
-    # 开始训练
-    for batch_id, data in enumerate(train_reader()):#遍历train_reader的迭代器，并为数据加上索引batch_id
+    # Train
+    for batch_id, data in enumerate(train_reader()):
         x=EMD(data)
-        train_cost,train_acc = exe.run(program=fluid.default_main_program(),           #运行主程序
-                            feed=feeder.feed(x),                        #喂入一个batch的数据
-                            fetch_list=[avg_cost, acc])                    #fetch均方误差和准确率
+        train_cost,train_acc = exe.run(program=fluid.default_main_program(),          
+                            feed=feeder.feed(x),                        
+                            fetch_list=[avg_cost, acc])                    
 
-        #每100次batch打印一次训练、进行一次测试
+        
         if batch_id % 200 == 0:                                             
             print('Pass:%d, Batch:%d, Cost:%0.5f, Accuracy:%0.5f' %(pass_id, batch_id, train_cost[0], train_acc[0])) 
     
-    # 开始测试
-    test_costs = []                                                         #测试的损失值
-    test_accs = []                                                          #测试的准确率
+    # Validation
+    test_costs = []                                                         
+    test_accs = []                                                          
     test_ssims=[]
     for batch_id, data in enumerate(test_reader()):
         if batch_id < 100:
             x1=EMD(data)
-            test_cost, test_acc,test_ssim = exe.run(program=test_program,                 #执行测试程序
-                                        feed=feeder.feed(x1),               #喂入数据
-                                        fetch_list=[avg_cost1, acc1, ssim])           #fetch 误差、准确率
-            test_costs.append(np.mean(test_cost))                                     #记录每个batch的误差
-            test_accs.append(np.mean(test_acc))                                       #记录每个batch的准确率
+            test_cost, test_acc,test_ssim = exe.run(program=test_program,                
+                                        feed=feeder.feed(x1),               
+                                        fetch_list=[avg_cost1, acc1, ssim])          
+            test_costs.append(np.mean(test_cost))                                     
+            test_accs.append(np.mean(test_acc))                                      
             test_ssims.append(np.mean(test_ssim))
-    # 求测试结果的平均值
-    test_cost2 = (sum(test_costs) / len(test_costs))                         #计算误差平均值（误差和/误差的个数）
-    test_acc2 = (sum(test_accs) / len(test_accs))                            #计算准确率平均值（ 准确率的和/准确率的个数）
+    
+    test_cost2 = (sum(test_costs) / len(test_costs))                         
+    test_acc2 = (sum(test_accs) / len(test_accs))                            
     test_ssim2= (sum(test_ssims) / len(test_ssims)) 
     print('Test:%d, Cost:%0.5f, ACC:%0.5f, SSIM:%0.5f' % (pass_id, test_cost2, test_acc2,test_ssim2))
 end_time=time.time()
 tepoch_time=end_time-start_time
 print('time:' + str(tepoch_time))
-#保存模型
-# 如果保存路径不存在就创建
+
+#save model
+
 if not os.path.exists(model_save_dir):
     os.makedirs(model_save_dir)
 print ('save models to %s' % (model_save_dir))
 fluid.io.save_inference_model(model_save_dir,['images'],[predict],exe)
 
 
-print('训练模型保存完成！')
+print('Finish！')
